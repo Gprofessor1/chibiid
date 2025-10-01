@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>치비증명사진 메이커</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Gowun Dodum', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .main-card {
+            transition: opacity 0.5s ease-in-out;
+        }
+        .view {
+            display: none;
+        }
+        .view-active {
+            display: block;
+        }
+        .upload-zone {
+            border: 3px dashed #a3d5ff;
+            background-color: #f0f8ff;
+        }
+        .upload-zone.dragover {
+            border-color: #005a9c;
+            background-color: #e6f3ff;
+        }
+        .history-thumbnail {
+            width: 64px;
+            height: 64px;
+            object-fit: cover;
+            border: 3px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+        }
+        .history-thumbnail.selected {
+            border-color: #4a90e2;
+            transform: scale(1.1);
+        }
+        .loader {
+            border-top-color: #4a90e2;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .footer-credit {
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 5px 10px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-size: 12px;
+            border-radius: 12px;
+            z-index: 100;
+            text-align: center;
+        }
+    </style>
+</head>
+<body class="bg-[#f0f8ff] flex items-center justify-center min-h-screen p-4">
+    
+    <div id="main-card" class="w-full max-w-md mx-auto bg-white rounded-2xl shadow-xl p-6 md:p-8 space-y-6">
+        
+        <!-- 앱 제목 -->
+        <div class="text-center">
+            <h1 class="text-3xl md:text-4xl font-bold text-[#005a9c]">치비증명사진 메이커 🎨</h1>
+            <p class="text-gray-500 mt-2">AI로 만드는 나만의 귀여운 캐릭터!</p>
+        </div>
+
+        <!-- 에러 메시지 영역 -->
+        <div id="error-message" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative" role="alert">
+            <strong class="font-bold">앗! 문제 발생 😥</strong>
+            <span class="block sm:inline" id="error-text">문제가 발생했습니다.</span>
+        </div>
+
+        <!-- 0. API 키 입력 화면 -->
+        <div id="api-key-view" class="view space-y-4">
+            <h2 class="text-lg font-semibold text-center text-gray-700">시작하기 전에! 🔑</h2>
+            <p class="text-center text-sm text-gray-500">Gemini API 키를 입력해주세요. 키는 브라우저에만 안전하게 저장돼요.</p>
+            <input type="password" id="api-key-input" placeholder="여기에 API 키를 붙여넣으세요" class="w-full border-2 border-gray-300 p-3 rounded-xl focus:ring-2 focus:ring-[#4a90e2] focus:border-[#4a90e2] transition">
+            <button id="save-api-key-button" class="w-full bg-[#4a90e2] text-white font-bold py-4 px-6 rounded-xl text-lg hover:bg-[#005a9c] hover:shadow-lg transition-all transform hover:scale-105">저장하고 시작하기! ✨</button>
+        </div>
+
+        <!-- 1. 사진 업로드 화면 -->
+        <div id="upload-view" class="view">
+            <div id="upload-zone" class="upload-zone rounded-xl p-10 text-center cursor-pointer transition">
+                <input type="file" id="file-input" class="hidden" accept="image/jpeg, image/png, image/jpg">
+                <div class="flex flex-col items-center text-[#005a9c]">
+                    <svg class="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                    <p class="font-semibold text-lg">사진을 끌어오거나 클릭! 📸</p>
+                    <p class="text-xs mt-1">JPG, PNG 파일 / 10MB 이하</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. 로딩 화면 -->
+        <div id="loading-view" class="view text-center py-10">
+            <div class="loader w-20 h-20 rounded-full border-8 border-gray-200 inline-block"></div>
+            <p class="text-gray-600 text-lg mt-6 animate-pulse">캐릭터 변신 중... 얍! 🧙‍♂️</p>
+        </div>
+
+        <!-- 3. 결과 화면 -->
+        <div id="result-view" class="view space-y-4">
+            <div class="border-4 border-[#005a9c] rounded-xl flex items-center justify-center aspect-square overflow-hidden bg-gray-100">
+                <img id="result-image" src="" alt="생성된 치비 캐릭터" class="max-w-full max-h-full object-contain">
+            </div>
+            <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-3">
+                    <button id="regenerate-button" class="w-full bg-gray-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-gray-700 transition transform hover:scale-105">다시 만들기 🎨</button>
+                    <button id="start-over-button" class="w-full bg-gray-200 text-gray-800 font-bold py-3 px-4 rounded-xl hover:bg-gray-300 transition transform hover:scale-105">처음으로 🚀</button>
+                </div>
+                <input type="text" id="filename-input" placeholder="파일 이름을 입력해요 (예: 김멋쟁_캐릭터)" class="w-full border-2 border-gray-300 p-3 rounded-xl focus:ring-2 focus:ring-[#4a90e2] focus:border-[#4a90e2] transition">
+                <button id="download-button" class="w-full bg-[#4a90e2] text-white font-bold py-4 px-4 text-lg rounded-xl hover:bg-[#005a9c] transition disabled:bg-blue-300 disabled:cursor-not-allowed disabled:transform-none transform hover:scale-105">다운로드 📥</button>
+            </div>
+        </div>
+
+        <!-- 생성 기록 -->
+        <div id="history-container" class="hidden">
+            <h3 class="text-md font-bold text-gray-600 mb-2">내가 만든 캐릭터들 🖼️</h3>
+            <div id="history-gallery" class="flex flex-wrap gap-2 bg-gray-100 p-2 rounded-lg">
+                <!-- 썸네일이 여기에 추가됩니다. -->
+            </div>
+        </div>
+    </div>
+    
+    <div class="footer-credit">
+        /* Made BLACKHOLE GWONZZANG😍blog.naver.com/banggahj */
+    </div>
+
+    <script>
+        const mainCard = document.getElementById('main-card');
+        const views = {
+            apiKey: document.getElementById('api-key-view'),
+            upload: document.getElementById('upload-view'),
+            loading: document.getElementById('loading-view'),
+            result: document.getElementById('result-view'),
+        };
+        
+        const apiKeyInput = document.getElementById('api-key-input');
+        const saveApiKeyButton = document.getElementById('save-api-key-button');
+        const uploadZone = document.getElementById('upload-zone');
+        const fileInput = document.getElementById('file-input');
+        const resultImage = document.getElementById('result-image');
+        const regenerateButton = document.getElementById('regenerate-button');
+        const downloadButton = document.getElementById('download-button');
+        const filenameInput = document.getElementById('filename-input');
+        const startOverButton = document.getElementById('start-over-button');
+        
+        const errorMessage = document.getElementById('error-message');
+        const errorText = document.getElementById('error-text');
+
+        const historyContainer = document.getElementById('history-container');
+        const historyGallery = document.getElementById('history-gallery');
+
+        let userApiKey = null;
+        let originalImageBase64 = null;
+        let generatedImageBase64 = null;
+        let generationHistory = [];
+
+        function showView(viewName) {
+            mainCard.style.opacity = 0;
+            setTimeout(() => {
+                Object.values(views).forEach(view => view.classList.remove('view-active'));
+                views[viewName].classList.add('view-active');
+                mainCard.style.opacity = 1;
+            }, 500);
+        }
+        
+        function loadApiKey() {
+            const savedKey = localStorage.getItem('geminiApiKey');
+            if (savedKey) {
+                userApiKey = savedKey;
+                showView('upload');
+            } else {
+                showView('apiKey');
+            }
+        }
+
+        function saveApiKey() {
+            const key = apiKeyInput.value.trim();
+            if (key) {
+                userApiKey = key;
+                localStorage.setItem('geminiApiKey', key);
+                showView('upload');
+                hideError();
+            } else {
+                showError("API 키를 입력해주세요!");
+            }
+        }
+        
+        saveApiKeyButton.addEventListener('click', saveApiKey);
+
+        uploadZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadZone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadZone.addEventListener(eventName, () => uploadZone.classList.add('dragover'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadZone.addEventListener(eventName, () => uploadZone.classList.remove('dragover'), false);
+        });
+
+        uploadZone.addEventListener('drop', (e) => handleFile(e.dataTransfer.files[0]), false);
+
+        function handleFile(file) {
+            if (!file) return;
+            if (file.size > 10 * 1024 * 1024) { // 10MB
+                showError("파일이 너무 커요! 10MB 이하로 줄여주세요.");
+                return;
+            }
+            if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) {
+                showError("JPG 또는 PNG 파일만 올릴 수 있어요.");
+                return;
+            }
+            hideError();
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                originalImageBase64 = e.target.result.split(',')[1];
+                generateChibi(originalImageBase64);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function generateChibi(imageBase64) {
+            if (!userApiKey) {
+                showError("API 키가 설정되지 않았어요. API 키를 먼저 입력해주세요.");
+                showView('apiKey');
+                return;
+            }
+            showView('loading');
+            
+            // --- 추가된 부분 ---
+            // 요청 중에는 버튼을 비활성화하여 중복 클릭 방지
+            regenerateButton.disabled = true;
+            startOverButton.disabled = true;
+            // -----------------
+
+            // Kid-friendly, emoji-filled prompt for better results
+            const userPrompt = `A super cute and happy chibi character ID photo, based on the uploaded image. Make it in a bright and colorful Japanese anime style, perfect for a student ID card. 🎨 Key features: Use a very bold and thick black outline around the entire character. Big, sparkling eyes with shiny highlights ✨, a sweet smile 😊, and soft rosy cheeks. The character should have simple, friendly colors. The background must be plain white for a clear ID photo look. The final image should be very high quality, adorable, and friendly, almost like a cute sticker.`;
+            
+            // NOTE: The model 'gemini-2.5-flash-image-preview' is used as it is specialized for image generation tasks.
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${userApiKey}`;
+
+            const payload = {
+                contents: [{
+                    parts: [{ text: userPrompt }, { inlineData: { mimeType: "image/png", data: imageBase64 } }]
+                }],
+                generationConfig: {
+                    responseModalities: ['IMAGE']
+                },
+            };
+
+            try {
+                const response = await fetchWithBackoff(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error?.message || `HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                const base64Data = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+
+                if (!base64Data) {
+                    throw new Error("AI 모델이 이미지를 만들지 못했어요. 😢");
+                }
+
+                generatedImageBase64 = base64Data;
+                resultImage.src = `data:image/png;base64,${generatedImageBase64}`;
+                showView('result');
+                addToHistory(generatedImageBase64);
+                
+            } catch (error) {
+                console.error("Error generating chibi:", error);
+                showError(error.message || "캐릭터를 만들다가 문제가 생겼어요. 잠시 후 다시 시도해주세요.");
+                resetApp(false);
+            } finally {
+                // --- 추가된 부분 ---
+                // 요청이 성공하든 실패하든 버튼을 다시 활성화
+                regenerateButton.disabled = false;
+                startOverButton.disabled = false;
+                // -----------------
+            }
+        }
+        
+        async function fetchWithBackoff(url, options, retries = 3, delay = 1000) {
+            let lastError;
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    // If the response is not a rate limit error or a server error, return it immediately.
+                    // The calling function will handle whether it's 'ok' or a client-side error (like 400).
+                    if (response.status !== 429 && response.status < 500) {
+                        return response;
+                    }
+                    // If it IS a retryable error, store it as the last known error.
+                    lastError = new Error(`API 요청이 상태 코드 ${response.status}(으)로 실패했습니다.`);
+                } catch (error) {
+                    // This catches network errors (e.g., no internet)
+                    lastError = error;
+                }
+
+                // If this isn't the last retry, wait before trying again.
+                if (i < retries - 1) {
+                    await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+                }
+            }
+            // If the loop completes, all retries have failed. Throw the last error we captured.
+            throw lastError;
+        }
+
+        regenerateButton.addEventListener('click', () => {
+             if(originalImageBase64) {
+                 hideError();
+                 generateChibi(originalImageBase64)
+             }
+        });
+
+        filenameInput.addEventListener('input', () => {
+            downloadButton.disabled = filenameInput.value.trim() === '';
+        });
+
+        downloadButton.addEventListener('click', () => {
+            if (generatedImageBase64) {
+                const filename = (filenameInput.value.trim() || 'chibi_character') + '.png';
+                
+                try {
+                    const blob = base64ToBlob(generatedImageBase64, 'image/png');
+                    const blobUrl = URL.createObjectURL(blob);
+
+                    const link = document.createElement('a');
+                    link.href = blobUrl;
+                    link.download = filename;
+                    
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(blobUrl);
+                } catch (e) {
+                    console.error("Download failed:", e);
+                    showError("다운로드에 실패했어요. 브라우저 설정을 확인해주세요.");
+                }
+            }
+        });
+        
+        startOverButton.addEventListener('click', () => {
+            resetApp(false); // Keep history
+        });
+
+        function resetApp(clearHistory = false) {
+             originalImageBase64 = null;
+             generatedImageBase64 = null;
+             fileInput.value = '';
+             filenameInput.value = '';
+             downloadButton.disabled = true;
+             if (clearHistory) {
+                 generationHistory = [];
+                 renderHistory();
+             }
+             if (userApiKey) {
+                showView('upload');
+             } else {
+                showView('apiKey');
+             }
+        }
+
+        function showError(message) {
+            errorText.textContent = message;
+            errorMessage.classList.remove('hidden');
+        }
+
+        function hideError() {
+            errorMessage.classList.add('hidden');
+        }
+
+        function base64ToBlob(base64, mimeType) {
+            const byteCharacters = atob(base64);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            return new Blob([byteArray], { type: mimeType });
+        }
+
+        function addToHistory(imageBase64) {
+            generationHistory.unshift(imageBase64); // Add to the beginning
+            if (generationHistory.length > 10) { // Keep last 10
+                generationHistory.pop();
+            }
+            renderHistory();
+        }
+
+        function renderHistory() {
+            historyGallery.innerHTML = ''; 
+            if (generationHistory.length > 0) {
+                historyContainer.classList.remove('hidden');
+                generationHistory.forEach((imgBase64, index) => {
+                    const img = document.createElement('img');
+                    img.src = `data:image/png;base64,${imgBase64}`;
+                    img.classList.add('history-thumbnail', 'rounded-md');
+                    if (imgBase64 === generatedImageBase64) {
+                         img.classList.add('selected');
+                    }
+                    img.addEventListener('click', () => {
+                        generatedImageBase64 = imgBase64;
+                        resultImage.src = img.src;
+                        document.querySelectorAll('.history-thumbnail').forEach(thumb => thumb.classList.remove('selected'));
+                        img.classList.add('selected');
+                    });
+                    historyGallery.appendChild(img);
+                });
+            } else {
+                historyContainer.classList.add('hidden');
+            }
+        }
+        
+        // Initial setup
+        loadApiKey();
+
+    </script>
+</body>
+</html>
+
+
+
