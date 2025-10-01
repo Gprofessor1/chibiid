@@ -293,7 +293,11 @@
                 
             } catch (error) {
                 console.error("Error generating chibi:", error);
-                showError(error.message || "캐릭터를 만들다가 문제가 생겼어요. 잠시 후 다시 시도해주세요.");
+                if (error.message && error.message.includes('429')) {
+                    showError("요청이 너무 많아요! 🚀 잠시 후 다시 시도해주세요.");
+                } else {
+                    showError(error.message || "캐릭터를 만들다가 문제가 생겼어요. 잠시 후 다시 시도해주세요.");
+                }
                 resetApp(false);
             } finally {
                 // --- 추가된 부분 ---
@@ -442,7 +446,4 @@
     </script>
 </body>
 </html>
-
-
-
 
